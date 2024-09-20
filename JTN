@@ -1,0 +1,102 @@
+pipeline {
+    agent any
+    tools{
+        jdk 'Jdk17'
+        PATH = " /usr/bin/mvn /usr/share/man/man1/mvn.1.gz:$PATH"
+    }
+    
+    environment{
+        SCANNER_HOME=tool 'sonar-scanner'
+    }
+
+    stages {
+        stage('1 Git Checkout') {
+            steps {
+                echo 'This For Take Code'
+                git branch: 'main', credentialsId: 'docker', url: 'https://github.com/mhadv/pi.git'
+                
+            }
+        }
+    
+        
+        
+        stage('Compile') {
+            steps {
+                echo 'Now we can build Project by throw Maven'
+                sh 'mvn complie'
+            }
+        }
+        
+        stage('3 Sonarqube Analysis') {
+            steps {
+                script{
+                    
+                    
+                    withSonarQubeEnv(credentialsId: 'sonar-token') {
+                        sh'''$SCANNER_HOME/bin/sonar-scanner \
+                                -Dsonar.projectName=springboot \
+                                -Dsonar.projectKey=springboot \
+                                -Dsonar.java.binaries=target'''
+                    }
+                    
+                }
+                echo 'Sonar Ka kaam ho gya'
+            }
+        }
+        
+        
+        
+        stage('Dependecy Check') {
+            steps {
+                dependencyCheck additionalArguments: '--scan ./ --format HTML ', odcInstallation:'DP-Check'
+                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+            }
+        }
+        
+        
+        
+        
+        stage('Docker Build And Tag') {
+            steps {
+                script{
+                withDockerRegistry(credentialsId: 'docker') {
+                    sh 'docker build -t new . '
+                    sh 'docker tag omrajput/new:latest'
+                }
+                }
+            }
+        }
+        
+        
+        stage('docker push'){
+            steps{
+               script{
+                withDockerRegistry(credentialsId: 'docker') {
+                    sh 'docker push omrajput/new:latest'
+                } 
+            }
+         }
+        }
+        
+        
+        stage('triya'){
+            steps{
+                sh 'trivy image omrajput/new:latest --format tabel -o image.html'
+            }
+        }
+        
+        stage('Docker Deploy'){
+            steps{
+                 script{
+                withDockerRegistry(credentialsId: 'docker') {
+                    sh 'docker run -d -p 8090: omrajput/new:latest'
+                }
+            }
+        }
+        
+                             }
+                                          }
+}
+                                          
+                                          
+                                          
